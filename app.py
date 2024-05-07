@@ -1,9 +1,10 @@
 import pdfplumber
-from flask import Flask
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 
 app = Flask(__name__)
+load_dotenv()
 
 
 def extract_text_from_pdf(pdf_path):
@@ -14,10 +15,13 @@ def extract_text_from_pdf(pdf_path):
     return text
 
 
-@app.route('/')
+@app.route('/', methods=['POST'])
 def index():
-    pdf_text = extract_text_from_pdf('pdf/Nikles Company Information Chatbot.pdf')
-    return pdf_text
+    if request.method == "POST":
+        query_data = request.args.get('question')
+        pdf_text = extract_text_from_pdf('pdf/Nikles Company Information Chatbot.pdf')
+        return pdf_text
+    return jsonify()
 
 
 if __name__ == '__main__':

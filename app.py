@@ -94,8 +94,10 @@ def index():
         query_data = request.args.get('question')
         pages = load_pdf('pdf/Nikles Company Information Chatbot.pdf')
         ai_message = chat_bot(pages, query_data)
-
-        return ai_message
+        context = {
+            'AL Message': ai_message
+        }
+        return jsonify(context)
 
     return jsonify()
 

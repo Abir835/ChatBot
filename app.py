@@ -100,7 +100,7 @@ def index():
         pages = load_pdf(config['pdf_path'])
         ai_message = chat_bot(pages, query_data)
         context = {
-            'AL Message': ai_message
+            'AI Message': ai_message
         }
         return jsonify(context)
 

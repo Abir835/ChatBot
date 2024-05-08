@@ -40,6 +40,7 @@ def load_pdf(pdf_path):
     pages = loader.load_and_split()
     return pages
 
+
 def chat_model():
     chat = ChatOpenAI(
         openai_api_key=openai_api_key,

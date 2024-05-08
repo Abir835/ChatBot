@@ -8,7 +8,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain.chat_models import ChatOpenAI
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import FAISS
-from dotenv import dotenv_values
+from dotenv import dotenv_values, find_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain import hub
 from langchain_core.output_parsers import StrOutputParser
@@ -96,7 +96,7 @@ def index():
             return jsonify({"error": "Question field is missing."}), 400
 
         query_data = request.json['question']
-        pages = load_pdf('pdf/Nikles Company Information Chatbot.pdf')
+        pages = load_pdf(config['pdf_path'])
         ai_message = chat_bot(pages, query_data)
         context = {
             'AL Message': ai_message

@@ -91,7 +91,11 @@ def chat_bot(pages, query_data):
 def index():
     if request.method == "POST":
 
-        query_data = request.args.get('question')
+        json_data = request.json
+        if json_data is None or 'question' not in json_data:
+            return jsonify({"error": "Question field is missing."}), 400
+
+        query_data = request.json['question']
         pages = load_pdf('pdf/Nikles Company Information Chatbot.pdf')
         ai_message = chat_bot(pages, query_data)
         context = {

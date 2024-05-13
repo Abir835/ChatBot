@@ -1,32 +1,16 @@
-import pdfplumber
+import os
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 from dotenv import load_dotenv
-import nltk
-from PyPDF2 import PdfReader
 from langchain_openai import OpenAIEmbeddings
 from langchain.chat_models import ChatOpenAI
-from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import FAISS
-from dotenv import dotenv_values, find_dotenv
+from dotenv import dotenv_values
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain import hub
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.prompts import PromptTemplate
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.prompts import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    MessagesPlaceholder,
-    SystemMessagePromptTemplate,
-)
-from langchain.chains import create_history_aware_retriever
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.messages import HumanMessage
-
 
 app = Flask(__name__)
 load_dotenv()
@@ -84,27 +68,58 @@ def chat_bot(pages, query_data):
 
     question = "can you give me contact number?"
     answer = rag_chain.invoke({"input": query_data, "chat_history": chat_history})
+    chat_history.extend([HumanMessage(content=question), answer["answer"]])
 
     return answer["answer"]
 
 
-@app.route('/', methods=['POST'])
-def index():
+@app.route('/chat_bot', methods=['POST'])
+def chat_response():
     if request.method == "POST":
-
         json_data = request.json
         if json_data is None or 'question' not in json_data:
             return jsonify({"error": "Question field is missing."}), 400
 
-        query_data = request.json['question']
-        pages = load_pdf(config['pdf_path'])
-        ai_message = chat_bot(pages, query_data)
-        context = {
-            'AI Message': ai_message
-        }
-        return jsonify(context)
+        if 'chat_bot_name' not in json_data:
+            return jsonify({"error": "Chat bot name is missing."}), 400
 
-    return jsonify()
+        query_data = json_data['question']
+        pdf_name_search = json_data['chat_bot_name']
+
+        try:
+            pages = load_pdf("pdf/" + pdf_name_search + ".pdf")
+            ai_message = chat_bot(pages, query_data)
+            data = {
+                'AI Message': ai_message
+            }
+            return jsonify(data)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    return jsonify({'error': 'Invalid request method.'}), 405
+
+
+@app.route('/upload-file', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+
+    file = request.files['file']
+    file_name = request.form.get('file_name')
+
+    if not file_name:
+        return jsonify({'error': 'File name is missing.'}), 400
+
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+
+    app.config['UPLOAD_FOLDER'] = config['UPLOAD_FOLDER']
+
+    try:
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], file_name + ".pdf"))
+        return jsonify({'message': 'File uploaded successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

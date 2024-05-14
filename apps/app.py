@@ -16,7 +16,7 @@ app = Flask(__name__)
 load_dotenv()
 
 config = dotenv_values(".env")
-openai_api_key = config["OPENAI_API_KEY"]
+openai_api_key = os.getenv("OPENAI_API_KEY")
 
 
 def load_pdf(pdf_path):
@@ -37,20 +37,23 @@ def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
 
-def chat_bot(pages, query_data):
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    splits = text_splitter.split_documents(pages)
-    embeddings = OpenAIEmbeddings()
-    text_content = [doc.page_content for doc in splits]
-    docsearch = FAISS.from_texts(text_content, embeddings)
-    retriever = docsearch.as_retriever()
-    qa_system_prompt = """You are an expert for question-answering tasks. Use the following pieces of retrieved 
-    context to answer the question. If the answer is present in the context, please answer exactly same as context. 
-    you are also allowed to answer from chat history. If you don't know answer for any question, do not say 'I don't 
-    know'. Instead you should say: "Unfortunately, I am unable to answer your question at the moment. Please contact 
-    info@nikles.com so that our customer service can provide you with optimal assistance.
+def split_docs(pages):
+    try:
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        splits = text_splitter.split_documents(pages)
+        return splits
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-    {context}"""
+
+def prompt_template():
+    qa_system_prompt = """You are an expert for question-answering tasks. Use the following pieces of retrieved 
+        context to answer the question. If the answer is present in the context, please answer exactly same as context. 
+        you are also allowed to answer from chat history. If you don't know answer for any question, do not say 'I don't 
+        know'. Instead you should say: "Unfortunately, I am unable to answer your question at the moment. Please contact 
+        info@nikles.com so that our customer service can provide you with optimal assistance.
+
+        {context}"""
 
     qa_prompt = ChatPromptTemplate.from_messages(
         [
@@ -60,7 +63,18 @@ def chat_bot(pages, query_data):
         ]
     )
 
-    question_answer_chain = create_stuff_documents_chain(chat_model(), qa_prompt)
+    return qa_prompt
+
+
+def chat_bot(pages, query_data):
+
+    splits = split_docs(pages)
+    embeddings = OpenAIEmbeddings()
+    text_content = [doc.page_content for doc in splits]
+    docsearch = FAISS.from_texts(text_content, embeddings)
+    retriever = docsearch.as_retriever()
+
+    question_answer_chain = create_stuff_documents_chain(chat_model(), prompt_template())
 
     rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 
@@ -87,7 +101,7 @@ def chat_response():
         pdf_name_search = json_data['chat_bot_name']
 
         try:
-            pages = load_pdf("pdf/" + pdf_name_search + ".pdf")
+            pages = load_pdf("static/pdf/" + pdf_name_search + ".pdf")
             ai_message = chat_bot(pages, query_data)
             data = {
                 'AI Message': ai_message

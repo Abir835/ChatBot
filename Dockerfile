@@ -4,7 +4,8 @@ FROM python:${PYTHON_VERSION}-slim as base
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-WORKDIR /app
+WORKDIR /apps
+
 
 ARG UID=10001
 RUN adduser \
@@ -23,7 +24,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 USER appuser
 
-COPY .env /app/.env
+COPY .env apps/app/.env
+
+COPY apps/app.py .
 
 COPY . .
 

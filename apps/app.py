@@ -1,5 +1,6 @@
 import os
-from flask import Flask, request, jsonify
+import secrets
+from flask import Flask, request, jsonify, session
 from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
 from langchain.chat_models import ChatOpenAI
@@ -17,6 +18,8 @@ load_dotenv()
 
 config = dotenv_values(".env")
 openai_api_key = os.getenv("OPENAI_API_KEY")
+
+app.secret_key = secrets.token_hex(16)
 
 
 def load_pdf(pdf_path):
@@ -50,8 +53,9 @@ def prompt_template():
     qa_system_prompt = """You are an expert for question-answering tasks. Use the following pieces of retrieved 
         context to answer the question. If the answer is present in the context, please answer exactly same as context. 
         you are also allowed to answer from chat history. If you don't know answer for any question, do not say 'I don't 
-        know'. Instead you should say: "Unfortunately, I am unable to answer your question at the moment. Please contact 
-        info@nikles.com so that our customer service can provide you with optimal assistance.
+        know'. Instead you should say: "Unfortunately, I am unable to answer your question at the moment.
+        when chat_history is blank that time ans should be you have no previous question. you are very 
+        intelligent you give me previous answer also and question.I don dot need ": \" this
 
         {context}"""
 
@@ -66,8 +70,15 @@ def prompt_template():
     return qa_prompt
 
 
-def chat_bot(pages, query_data):
+def serialize_human_message(message):
+    return {"type": "human", "content": message.content}
 
+
+def deserialize_human_message(data):
+    return HumanMessage(content=data["content"])
+
+
+def chat_bot(pages, query_data):
     splits = split_docs(pages)
     embeddings = OpenAIEmbeddings()
     text_content = [doc.page_content for doc in splits]
@@ -78,11 +89,19 @@ def chat_bot(pages, query_data):
 
     rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 
-    chat_history = []
+    chat_history = session.get('chat_history', [])
 
-    question = "can you give me contact number?"
+    # Ensure chat history contains only dictionaries
+    chat_history = [deserialize_human_message(msg) if isinstance(msg, dict) and msg.get("type") == "human"
+                    else msg for msg in chat_history]
+
     answer = rag_chain.invoke({"input": query_data, "chat_history": chat_history})
-    chat_history.extend([HumanMessage(content=question), answer["answer"]])
+
+    chat_history.extend([HumanMessage(content=query_data), answer["answer"]])
+
+    # Serialize chat history
+    session['chat_history'] = [serialize_human_message(msg) if isinstance(msg, HumanMessage)
+                               else msg for msg in chat_history]
 
     return answer["answer"]
 
@@ -132,13 +151,17 @@ def upload_file():
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
 
-    app.config['UPLOAD_FOLDER'] = config['UPLOAD_FOLDER']
-
     try:
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], file_name + ".pdf"))
         return jsonify({'message': 'File uploaded successfully'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/get_chat_history', methods=['GET'])
+def get_chat_history():
+    chat_history = session.get('chat_history', [])
+    return jsonify({'chat_history': chat_history})
 
 
 if __name__ == '__main__':

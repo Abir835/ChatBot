@@ -87,6 +87,11 @@ def chat_bot(pages, query_data):
     return answer["answer"]
 
 
+@app.route("/")
+def index():
+    return jsonify("Chat Bot App Working")
+
+
 @app.route('/chat_bot', methods=['POST'])
 def chat_response():
     if request.method == "POST":
